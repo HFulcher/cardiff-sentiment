@@ -1,4 +1,5 @@
 import json
+import pprint
 from tweepy.streaming import StreamListener
 from tweepy import OAuthHandler
 from tweepy import Stream
@@ -10,20 +11,22 @@ from elasticsearch import client
 import configparser
 import sys
 
-# import twitter keys and tokens
-#from config import *
 # create instance of elasticsearch
 es = Elasticsearch([{'host': 'localhost', 'port': 9200}], http_auth=('elastic', 'changeme'))
+
+#Get instance of indexes to check file size
 ind = client.IndicesClient(es)
 
+#For counting tweets streamed
 count = 0
 
 class TweetStreamListener(StreamListener):
     print("Starting Stream")
     # on success
     def on_data(self, data):
-        #decode json
+
         try:
+            #decode json
             dict_data = json.loads(data)
 
             # pass tweet into TextBlob
@@ -45,19 +48,25 @@ class TweetStreamListener(StreamListener):
             timestamp = datetime.strptime(dict_data["created_at"].replace("+0000 ",""), "%a %b %d %H:%M:%S %Y").isoformat()
 
             # add text and sentiment info to elasticsearch
-            es.index(index="twitter-time-test",
-                     doc_type="twitter_twp_test",
+            es.index(index="twitter-cardiff_sentiment",
+                     doc_type="twitter_twp",
                      body={"author": dict_data["user"]["screen_name"],
+                           "fullname": dict_data["user"]["name"]
+                           "description": dict_data["user"]["description"]
+                           "location": dict_data["user"]["location"],
                            "timestamp": timestamp,
                            "message": dict_data["text"],
                            "polarity": tweet.sentiment.polarity,
                            "subjectivity": tweet.sentiment.subjectivity,
                            "sentiment": sentiment})
 
+            #Increment tweet count and display tweet amount
             tweet_count()
 
+            #Get size of index
             store_size = ind.stats()["indices"]["twitter-time-test"]["primaries"]["store"]["size_in_bytes"]
 
+            #If index exceeds 2GB shut down, otherwise continue
             if store_size < 2000000000:
                 return True
             else:
@@ -68,6 +77,7 @@ class TweetStreamListener(StreamListener):
             print("Manully stopping stream")
             return False
 
+        #Catches issues with TextBlob not being able to parse text
         except Exception as e:
             print(e)
             pass
