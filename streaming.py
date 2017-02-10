@@ -8,6 +8,7 @@ from textwrap import TextWrapper
 from datetime import datetime
 from elasticsearch import Elasticsearch
 from elasticsearch import client
+import traceback
 import configparser
 import sys
 
@@ -51,8 +52,8 @@ class TweetStreamListener(StreamListener):
             es.index(index="twitter-cardiff_sentiment",
                      doc_type="twitter_twp",
                      body={"author": dict_data["user"]["screen_name"],
-                           "fullname": dict_data["user"]["name"]
-                           "description": dict_data["user"]["description"]
+                           "fullname": dict_data["user"]["name"],
+                           "description": dict_data["user"]["description"],
                            "location": dict_data["user"]["location"],
                            "timestamp": timestamp,
                            "message": dict_data["text"],
@@ -64,7 +65,7 @@ class TweetStreamListener(StreamListener):
             tweet_count()
 
             #Get size of index
-            store_size = ind.stats()["indices"]["twitter-time-test"]["primaries"]["store"]["size_in_bytes"]
+            store_size = ind.stats()["indices"]["twitter-cardiff_sentiment"]["primaries"]["store"]["size_in_bytes"]
 
             #If index exceeds 2GB shut down, otherwise continue
             if store_size < 2000000000:
@@ -73,14 +74,12 @@ class TweetStreamListener(StreamListener):
                 print("Max amount reached, stopping stream")
                 return False
 
-        except KeyboardInterrupt:
-            print("Manully stopping stream")
-            return False
-
         #Catches issues with TextBlob not being able to parse text
         except Exception as e:
-            print(e)
-            pass
+            f = open("streaming_error_log", 'a')
+            f.write('-'*60 + '\n')
+            traceback.print_exc(file=f)
+            f.close()
 
     # on failure
     def on_error(self, status):
@@ -110,6 +109,6 @@ if __name__ == '__main__':
     # create instance of the tweepy stream
     stream = Stream(auth, listener)
 
-    # search twitter for "congress" keyword
-    stream.filter(track=['obama'])
+    # search twitter for "cardiff" keyword
+    stream.filter(track=['cardiff'])
     print("Ending Stream")
